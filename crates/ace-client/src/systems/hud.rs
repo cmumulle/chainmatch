@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use crate::systems::shot::ShotChargeState;
 use crate::systems::input::{ActiveShotModifier, ActiveShotType, ShotType};
+use crate::systems::serve::{ServeState, ServePhase};
 use crate::systems::movement::Player;
 use crate::resources::court::CourtEntity;
 
@@ -11,6 +12,10 @@ pub struct ModifierLabel;
 /// Marker for the shot type HUD text.
 #[derive(Component)]
 pub struct ShotTypeLabel;
+
+/// Marker for serve status label.
+#[derive(Component)]
+pub struct ServeLabel;
 
 /// Marker for the power bar background.
 #[derive(Component)]
@@ -65,6 +70,24 @@ pub fn spawn_hud(
             ..default()
         },
         ShotTypeLabel,
+        CourtEntity,
+    ));
+
+    // Serve status label (top-center)
+    commands.spawn((
+        Text::new(""),
+        TextFont {
+            font_size: 28.0,
+            ..default()
+        },
+        TextColor(Color::srgb(1.0, 1.0, 0.3)),
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(20.0),
+            left: Val::Percent(50.0),
+            ..default()
+        },
+        ServeLabel,
         CourtEntity,
     ));
 
@@ -210,6 +233,26 @@ pub fn update_shot_type_label(
             ShotType::Lob => TextColor(Color::srgb(1.0, 0.8, 0.2)),
             ShotType::DropShot => TextColor(Color::srgb(0.9, 0.4, 0.9)),
             ShotType::Smash => TextColor(Color::srgb(1.0, 0.3, 0.1)),
+        };
+    }
+}
+
+/// System that updates the serve status label.
+pub fn update_serve_label(
+    serve_state: Res<ServeState>,
+    mut query: Query<&mut Text, With<ServeLabel>>,
+) {
+    for mut text in query.iter_mut() {
+        **text = match serve_state.phase {
+            ServePhase::Idle => {
+                if serve_state.serve_pending {
+                    "Press SPACE to toss".to_string()
+                } else {
+                    String::new()
+                }
+            }
+            ServePhase::Tossing => "Tossing...".to_string(),
+            ServePhase::Descending => "CLICK to serve!".to_string(),
         };
     }
 }

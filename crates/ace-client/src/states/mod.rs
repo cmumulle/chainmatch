@@ -4,7 +4,7 @@ pub mod playing;
 pub mod post_match;
 
 use bevy::prelude::*;
-use crate::systems::{aiming, ball_physics, hud, input, movement, shot};
+use crate::systems::{aiming, ball_physics, hud, input, movement, serve, shot};
 
 /// Top-level game states.
 #[derive(States, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -65,11 +65,18 @@ impl Plugin for StatesPlugin {
             )
             .add_systems(
                 Update,
-                (hud::update_power_bar, hud::update_modifier_label, hud::update_shot_type_label)
+                (serve::serve_toss_system, serve::serve_track_system, serve::serve_hit_system)
+                    .chain()
+                    .run_if(in_state(GameState::Playing)),
+            )
+            .add_systems(
+                Update,
+                (hud::update_power_bar, hud::update_modifier_label, hud::update_shot_type_label, hud::update_serve_label)
                     .run_if(in_state(GameState::Playing)),
             )
             .add_event::<shot::ShotCharged>()
             .init_resource::<shot::ShotChargeState>()
+            .init_resource::<serve::ServeState>()
             .init_resource::<input::ActiveShotModifier>()
             .init_resource::<input::ActiveShotType>()
             .init_resource::<input::SmashAvailable>()
