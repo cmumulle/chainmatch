@@ -4,7 +4,7 @@ pub mod playing;
 pub mod post_match;
 
 use bevy::prelude::*;
-use crate::systems::movement;
+use crate::systems::{ball_physics, movement};
 
 /// Top-level game states.
 #[derive(States, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -34,7 +34,12 @@ impl Plugin for StatesPlugin {
             .add_systems(
                 Update,
                 movement::player_movement_system.run_if(in_state(GameState::Playing)),
-            );
+            )
+            .add_systems(
+                FixedUpdate,
+                ball_physics::ball_physics_system.run_if(in_state(GameState::Playing)),
+            )
+            .insert_resource(Time::<Fixed>::from_hz(120.0));
     }
 }
 
