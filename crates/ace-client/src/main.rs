@@ -1,4 +1,6 @@
+mod resources;
 mod states;
+mod systems;
 
 use bevy::prelude::*;
 use states::StatesPlugin;
