@@ -53,7 +53,9 @@ impl Plugin for StatesPlugin {
             )
             .add_systems(
                 Update,
-                shot::shot_charge_system.run_if(in_state(GameState::Playing)),
+                (shot::shot_charge_system, shot::shot_execution_system)
+                    .chain()
+                    .run_if(in_state(GameState::Playing)),
             )
             .add_systems(
                 Update,
