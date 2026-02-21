@@ -3,6 +3,7 @@ use bevy::window::PrimaryWindow;
 use crate::resources::court::{
     CourtEntity, HALF_COURT_LENGTH, HALF_COURT_WIDTH,
 };
+use crate::systems::shot::ShotTimingState;
 
 /// Marker for the aim reticle (projected circle on court).
 #[derive(Component)]
@@ -100,6 +101,7 @@ pub fn update_aim_target(
         With<AimIndicator>,
     >,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    timing: Res<ShotTimingState>,
 ) {
     let Ok(window) = windows.get_single() else {
         return;
@@ -158,11 +160,17 @@ pub fn update_aim_target(
 
     aim_target.position = Some(hit_point);
 
-    // Update reticle position and color
+    // Update reticle position, color, and scale (timing quality preview)
     let color = reticle_color(hit_point);
+    let scale = if timing.in_zone {
+        timing.quality_preview.reticle_scale()
+    } else {
+        1.0
+    };
 
     for (mut transform, mut vis, mat_handle) in indicator.iter_mut() {
         transform.translation = Vec3::new(hit_point.x, 0.01, hit_point.z);
+        transform.scale = Vec3::splat(scale);
         *vis = Visibility::Visible;
 
         // Update material color

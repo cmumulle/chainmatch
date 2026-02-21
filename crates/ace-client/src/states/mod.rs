@@ -53,6 +53,10 @@ impl Plugin for StatesPlugin {
             )
             .add_systems(
                 Update,
+                shot::ball_approach_tracking_system.run_if(in_state(GameState::Playing)),
+            )
+            .add_systems(
+                Update,
                 (shot::shot_charge_system, shot::shot_execution_system)
                     .chain()
                     .run_if(in_state(GameState::Playing)),
@@ -75,11 +79,13 @@ impl Plugin for StatesPlugin {
             )
             .add_systems(
                 Update,
-                (hud::update_power_bar, hud::update_modifier_label, hud::update_shot_type_label, hud::update_serve_label)
+                (hud::update_power_bar, hud::update_modifier_label, hud::update_shot_type_label, hud::update_serve_label, hud::spawn_timing_flash, hud::update_timing_flash)
                     .run_if(in_state(GameState::Playing)),
             )
             .add_event::<shot::ShotCharged>()
+            .add_event::<shot::ShotQualityEvent>()
             .init_resource::<shot::ShotChargeState>()
+            .init_resource::<shot::ShotTimingState>()
             .init_resource::<serve::ServeState>()
             .init_resource::<serve::ActiveServeType>()
             .add_event::<serve::ServeFault>()

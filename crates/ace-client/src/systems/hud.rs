@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::systems::shot::ShotChargeState;
+use crate::systems::shot::{ShotChargeState, ShotQuality, ShotQualityEvent};
 use crate::systems::input::{ActiveShotModifier, ActiveShotType, ShotType};
 use crate::systems::serve::{ServeState, ServePhase, ActiveServeType};
 use crate::systems::movement::Player;
@@ -16,6 +16,13 @@ pub struct ShotTypeLabel;
 /// Marker for serve status label.
 #[derive(Component)]
 pub struct ServeLabel;
+
+/// Marker for timing quality flash text.
+#[derive(Component)]
+pub struct TimingFlash {
+    pub remaining: f32,
+    pub total: f32,
+}
 
 /// Marker for the power bar background.
 #[derive(Component)]
@@ -263,5 +270,76 @@ pub fn update_serve_label(
             ServePhase::Tossing => "Tossing...".to_string(),
             ServePhase::Descending => "CLICK to serve!".to_string(),
         };
+    }
+}
+
+/// Flash duration in seconds.
+const FLASH_DURATION: f32 = 1.0;
+
+/// Color for each shot quality.
+fn quality_color(quality: ShotQuality) -> Color {
+    match quality {
+        ShotQuality::Perfect => Color::srgb(1.0, 1.0, 0.0),   // Bright yellow
+        ShotQuality::Good => Color::srgb(0.2, 1.0, 0.2),      // Green
+        ShotQuality::Ok => Color::srgb(0.8, 0.8, 0.8),        // Light gray
+        ShotQuality::Late => Color::srgb(1.0, 0.5, 0.2),      // Orange
+        ShotQuality::Miss => Color::srgb(1.0, 0.1, 0.1),      // Red
+    }
+}
+
+/// System that spawns timing flash text when a ShotQualityEvent fires.
+pub fn spawn_timing_flash(
+    mut commands: Commands,
+    mut quality_events: EventReader<ShotQualityEvent>,
+    existing_flash: Query<Entity, With<TimingFlash>>,
+) {
+    for event in quality_events.read() {
+        // Remove any existing flash
+        for entity in existing_flash.iter() {
+            commands.entity(entity).despawn();
+        }
+
+        let color = quality_color(event.quality);
+
+        commands.spawn((
+            Text::new(event.quality.display_name()),
+            TextFont {
+                font_size: 48.0,
+                ..default()
+            },
+            TextColor(color),
+            Node {
+                position_type: PositionType::Absolute,
+                top: Val::Percent(35.0),
+                left: Val::Percent(50.0),
+                ..default()
+            },
+            TimingFlash {
+                remaining: FLASH_DURATION,
+                total: FLASH_DURATION,
+            },
+            CourtEntity,
+        ));
+    }
+}
+
+/// System that updates timing flash text (fade out and despawn).
+pub fn update_timing_flash(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut TimingFlash, &mut TextColor)>,
+) {
+    for (entity, mut flash, mut color) in query.iter_mut() {
+        flash.remaining -= time.delta_secs();
+
+        if flash.remaining <= 0.0 {
+            commands.entity(entity).despawn();
+            continue;
+        }
+
+        // Fade out alpha
+        let alpha = (flash.remaining / flash.total).clamp(0.0, 1.0);
+        let base = color.0.to_srgba();
+        color.0 = Color::srgba(base.red, base.green, base.blue, alpha);
     }
 }
