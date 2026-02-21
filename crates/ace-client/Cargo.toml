@@ -1,0 +1,8 @@
+[package]
+name = "ace-client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ace-shared = { path = "../ace-shared" }
+bevy = { workspace = true }
