@@ -15,9 +15,9 @@ Read these files before starting any task:
 
 ## Current Phase
 
-Working on: Phase 0 (Project Scaffold), starting at T-001.
+Working on: Phase 1 (Court & Rendering), starting at T-007.
 
-Update this line as tasks are completed.
+Completed: Phase 0 (T-001 through T-006).
 
 ## Rules
 
