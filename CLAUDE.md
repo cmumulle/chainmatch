@@ -15,9 +15,9 @@ Read these files before starting any task:
 
 ## Current Phase
 
-Working on: Phase 1 (Court & Rendering), starting at T-007.
+Working on: Phase 2 (Mouse Aiming & Shots), starting at T-013.
 
-Completed: Phase 0 (T-001 through T-006).
+Completed: Phase 0 (T-001 through T-006), Phase 1 (T-007 through T-012).
 
 ## Rules
 
