@@ -1,4 +1,7 @@
+mod states;
+
 use bevy::prelude::*;
+use states::StatesPlugin;
 
 fn main() {
     App::new()
@@ -11,5 +14,6 @@ fn main() {
             ..default()
         }))
         .insert_resource(ClearColor(Color::srgb(0.05, 0.05, 0.08)))
+        .add_plugins(StatesPlugin)
         .run();
 }
