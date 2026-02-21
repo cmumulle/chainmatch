@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use ace_shared::types::ShotModifier;
 use crate::systems::aiming::AimTarget;
 use crate::systems::ball_physics::{Ball, BallState};
-use crate::systems::input::{ActiveShotModifier, ActiveShotType, ShotType};
+use crate::systems::input::{ActiveShotModifier, ActiveShotType, SmashAvailable, ShotType};
 use crate::systems::movement::Player;
 use crate::resources::court::NET_HEIGHT_CENTER;
 
@@ -119,13 +119,50 @@ fn modifier_spin(modifier: ShotModifier) -> (Vec3, f32) {
     }
 }
 
-/// Returns (launch angle offset in degrees, power multiplier) for a shot type.
-fn shot_type_params(shot_type: ShotType) -> (f32, f32) {
+/// Minimum ball height above player for smash to be available.
+const SMASH_HEIGHT_THRESHOLD: f32 = 2.5;
+
+/// Horizontal distance within which ball must be to player for smash detection.
+const SMASH_HORIZONTAL_RANGE: f32 = 3.0;
+
+/// Returns (launch angle offset in degrees, power multiplier, precision_radius) for a shot type.
+fn shot_type_params(shot_type: ShotType) -> (f32, f32, f32) {
     match shot_type {
-        ShotType::Groundstroke => (0.0, 1.0),
-        ShotType::Lob => (25.0, 0.6),      // Higher arc, less power
-        ShotType::DropShot => (-3.0, 0.25), // Very low power, barely clears net
+        ShotType::Groundstroke => (0.0, 1.0, BASE_PRECISION_RADIUS),
+        ShotType::Lob => (25.0, 0.6, BASE_PRECISION_RADIUS),
+        ShotType::DropShot => (-3.0, 0.25, BASE_PRECISION_RADIUS * 0.7),
+        ShotType::Smash => (-15.0, 1.5, BASE_PRECISION_RADIUS * 2.0), // Steep, powerful, less precise
     }
+}
+
+/// System that detects whether smash is available (ball above player at threshold height).
+pub fn smash_detection_system(
+    player_query: Query<&Transform, (With<Player>, Without<Ball>)>,
+    ball_query: Query<&Transform, (With<Ball>, Without<Player>)>,
+    mut smash: ResMut<SmashAvailable>,
+) {
+    let Ok(player_transform) = player_query.get_single() else {
+        smash.0 = false;
+        return;
+    };
+
+    let player_pos = player_transform.translation;
+    let mut available = false;
+
+    for ball_transform in ball_query.iter() {
+        let ball_pos = ball_transform.translation;
+        let horizontal_dist = Vec2::new(
+            ball_pos.x - player_pos.x,
+            ball_pos.z - player_pos.z,
+        ).length();
+
+        if ball_pos.y > SMASH_HEIGHT_THRESHOLD && horizontal_dist < SMASH_HORIZONTAL_RANGE {
+            available = true;
+            break;
+        }
+    }
+
+    smash.0 = available;
 }
 
 /// System that executes a shot when ShotCharged fires and ball is near player.
@@ -151,7 +188,7 @@ pub fn shot_execution_system(
         let modifier = active_modifier.0;
         let shot_type = active_shot_type.0;
         let (spin, speed_mult) = modifier_spin(modifier);
-        let (angle_offset, type_power_mult) = shot_type_params(shot_type);
+        let (angle_offset, type_power_mult, precision_radius) = shot_type_params(shot_type);
 
         for (mut ball_transform, mut ball_state) in ball_query.iter_mut() {
             let ball_pos = ball_transform.translation;
@@ -163,7 +200,7 @@ pub fn shot_execution_system(
             }
 
             // Apply precision scatter
-            let scatter = random_in_circle(BASE_PRECISION_RADIUS);
+            let scatter = random_in_circle(precision_radius);
             let actual_target = Vec3::new(
                 target_pos.x + scatter.x,
                 0.0,

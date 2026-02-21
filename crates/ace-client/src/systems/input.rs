@@ -30,13 +30,14 @@ impl ActiveShotModifier {
     }
 }
 
-/// Active shot type (groundstroke / lob / drop shot).
+/// Active shot type (groundstroke / lob / drop shot / smash).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ShotType {
     #[default]
     Groundstroke,
     Lob,
     DropShot,
+    Smash,
 }
 
 impl ShotType {
@@ -45,9 +46,14 @@ impl ShotType {
             ShotType::Groundstroke => "GROUND",
             ShotType::Lob => "LOB",
             ShotType::DropShot => "DROP",
+            ShotType::Smash => "SMASH",
         }
     }
 }
+
+/// Resource tracking whether smash is currently available.
+#[derive(Resource, Default)]
+pub struct SmashAvailable(pub bool);
 
 /// Resource tracking the currently selected shot type.
 #[derive(Resource, Default)]
@@ -67,13 +73,17 @@ pub fn shot_modifier_cycle_system(
 }
 
 /// System that sets shot type via Q/E keys. Releases revert to Groundstroke.
+/// Auto-switches to Smash when smash is available (overrides Q/E).
 pub fn shot_type_system(
     keyboard: Res<ButtonInput<KeyCode>>,
+    smash: Res<SmashAvailable>,
     mut shot_type: ResMut<ActiveShotType>,
 ) {
     let prev = shot_type.0;
 
-    if keyboard.pressed(KeyCode::KeyQ) {
+    if smash.0 {
+        shot_type.0 = ShotType::Smash;
+    } else if keyboard.pressed(KeyCode::KeyQ) {
         shot_type.0 = ShotType::Lob;
     } else if keyboard.pressed(KeyCode::KeyE) {
         shot_type.0 = ShotType::DropShot;

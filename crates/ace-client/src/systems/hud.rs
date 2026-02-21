@@ -209,6 +209,7 @@ pub fn update_shot_type_label(
             ShotType::Groundstroke => TextColor(Color::srgb(0.7, 0.7, 0.7)),
             ShotType::Lob => TextColor(Color::srgb(1.0, 0.8, 0.2)),
             ShotType::DropShot => TextColor(Color::srgb(0.9, 0.4, 0.9)),
+            ShotType::Smash => TextColor(Color::srgb(1.0, 0.3, 0.1)),
         };
     }
 }

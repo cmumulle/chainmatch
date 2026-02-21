@@ -59,7 +59,8 @@ impl Plugin for StatesPlugin {
             )
             .add_systems(
                 Update,
-                (input::shot_modifier_cycle_system, input::shot_type_system)
+                (shot::smash_detection_system, input::shot_modifier_cycle_system, input::shot_type_system)
+                    .chain()
                     .run_if(in_state(GameState::Playing)),
             )
             .add_systems(
@@ -71,6 +72,7 @@ impl Plugin for StatesPlugin {
             .init_resource::<shot::ShotChargeState>()
             .init_resource::<input::ActiveShotModifier>()
             .init_resource::<input::ActiveShotType>()
+            .init_resource::<input::SmashAvailable>()
             .add_event::<ball_physics::NetFault>()
             .add_event::<ball_physics::OutOfBounds>()
             .add_event::<ball_physics::ValidBounce>()
