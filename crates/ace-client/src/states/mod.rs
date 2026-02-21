@@ -4,6 +4,7 @@ pub mod playing;
 pub mod post_match;
 
 use bevy::prelude::*;
+use crate::systems::movement;
 
 /// Top-level game states.
 #[derive(States, Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -29,7 +30,11 @@ impl Plugin for StatesPlugin {
             .add_systems(OnExit(GameState::Playing), playing::on_exit)
             .add_systems(OnEnter(GameState::PostMatch), post_match::on_enter)
             .add_systems(OnExit(GameState::PostMatch), post_match::on_exit)
-            .add_systems(Update, debug_state_transition);
+            .add_systems(Update, debug_state_transition)
+            .add_systems(
+                Update,
+                movement::player_movement_system.run_if(in_state(GameState::Playing)),
+            );
     }
 }
 

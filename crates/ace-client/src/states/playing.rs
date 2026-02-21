@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use crate::resources::court::{self, CourtEntity};
+use crate::systems::movement;
 
 pub fn on_enter(
     mut commands: Commands,
@@ -8,6 +9,7 @@ pub fn on_enter(
 ) {
     info!("Entering Playing state");
     court::spawn_court(&mut commands, &mut meshes, &mut materials);
+    movement::spawn_player(&mut commands, &mut meshes, &mut materials);
 }
 
 pub fn on_exit(
