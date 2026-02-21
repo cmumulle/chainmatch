@@ -15,9 +15,9 @@ Read these files before starting any task:
 
 ## Current Phase
 
-Working on: Phase 2 (Mouse Aiming & Shots), starting at T-013.
+Working on: Phase 3 (AI & Match Loop), starting at T-023.
 
-Completed: Phase 0 (T-001 through T-006), Phase 1 (T-007 through T-012).
+Completed: Phase 0 (T-001 through T-006), Phase 1 (T-007 through T-012), Phase 2 (T-013 through T-022).
 
 ## Rules
 
