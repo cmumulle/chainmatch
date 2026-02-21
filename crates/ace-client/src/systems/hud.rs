@@ -1,12 +1,16 @@
 use bevy::prelude::*;
 use crate::systems::shot::ShotChargeState;
-use crate::systems::input::ActiveShotModifier;
+use crate::systems::input::{ActiveShotModifier, ActiveShotType, ShotType};
 use crate::systems::movement::Player;
 use crate::resources::court::CourtEntity;
 
 /// Marker for the shot modifier HUD text.
 #[derive(Component)]
 pub struct ModifierLabel;
+
+/// Marker for the shot type HUD text.
+#[derive(Component)]
+pub struct ShotTypeLabel;
 
 /// Marker for the power bar background.
 #[derive(Component)]
@@ -45,6 +49,25 @@ pub fn spawn_hud(
         ModifierLabel,
         CourtEntity,
     ));
+
+    // Shot type label (2D UI text, above modifier label)
+    commands.spawn((
+        Text::new("GROUND"),
+        TextFont {
+            font_size: 20.0,
+            ..default()
+        },
+        TextColor(Color::srgb(0.7, 0.7, 0.7)),
+        Node {
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(48.0),
+            right: Val::Px(20.0),
+            ..default()
+        },
+        ShotTypeLabel,
+        CourtEntity,
+    ));
+
     let bg_mat = materials.add(StandardMaterial {
         base_color: Color::srgba(0.1, 0.1, 0.1, 0.7),
         alpha_mode: AlphaMode::Blend,
@@ -166,6 +189,26 @@ pub fn update_modifier_label(
             ace_shared::types::ShotModifier::Flat => TextColor(Color::WHITE),
             ace_shared::types::ShotModifier::Topspin => TextColor(Color::srgb(0.2, 0.9, 0.2)),
             ace_shared::types::ShotModifier::Slice => TextColor(Color::srgb(0.4, 0.7, 1.0)),
+        };
+    }
+}
+
+/// System that updates the shot type label text.
+pub fn update_shot_type_label(
+    shot_type: Res<ActiveShotType>,
+    mut query: Query<(&mut Text, &mut TextColor), With<ShotTypeLabel>>,
+) {
+    if !shot_type.is_changed() {
+        return;
+    }
+
+    for (mut text, mut color) in query.iter_mut() {
+        **text = shot_type.0.display_name().to_string();
+
+        *color = match shot_type.0 {
+            ShotType::Groundstroke => TextColor(Color::srgb(0.7, 0.7, 0.7)),
+            ShotType::Lob => TextColor(Color::srgb(1.0, 0.8, 0.2)),
+            ShotType::DropShot => TextColor(Color::srgb(0.9, 0.4, 0.9)),
         };
     }
 }

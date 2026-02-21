@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use ace_shared::types::ShotModifier;
 use crate::systems::aiming::AimTarget;
 use crate::systems::ball_physics::{Ball, BallState};
-use crate::systems::input::ActiveShotModifier;
+use crate::systems::input::{ActiveShotModifier, ActiveShotType, ShotType};
 use crate::systems::movement::Player;
 use crate::resources::court::NET_HEIGHT_CENTER;
 
@@ -119,11 +119,21 @@ fn modifier_spin(modifier: ShotModifier) -> (Vec3, f32) {
     }
 }
 
+/// Returns (launch angle offset in degrees, power multiplier) for a shot type.
+fn shot_type_params(shot_type: ShotType) -> (f32, f32) {
+    match shot_type {
+        ShotType::Groundstroke => (0.0, 1.0),
+        ShotType::Lob => (25.0, 0.6),      // Higher arc, less power
+        ShotType::DropShot => (-3.0, 0.25), // Very low power, barely clears net
+    }
+}
+
 /// System that executes a shot when ShotCharged fires and ball is near player.
 pub fn shot_execution_system(
     mut shot_events: EventReader<ShotCharged>,
     aim_target: Res<AimTarget>,
     active_modifier: Res<ActiveShotModifier>,
+    active_shot_type: Res<ActiveShotType>,
     player_query: Query<&Transform, (With<Player>, Without<Ball>)>,
     mut ball_query: Query<(&mut Transform, &mut BallState), With<Ball>>,
 ) {
@@ -139,7 +149,9 @@ pub fn shot_execution_system(
 
         let player_pos = player_transform.translation;
         let modifier = active_modifier.0;
+        let shot_type = active_shot_type.0;
         let (spin, speed_mult) = modifier_spin(modifier);
+        let (angle_offset, type_power_mult) = shot_type_params(shot_type);
 
         for (mut ball_transform, mut ball_state) in ball_query.iter_mut() {
             let ball_pos = ball_transform.translation;
@@ -158,7 +170,7 @@ pub fn shot_execution_system(
                 target_pos.z + scatter.y,
             );
 
-            let speed = BASE_MAX_SPEED * event.power * speed_mult;
+            let speed = BASE_MAX_SPEED * event.power * speed_mult * type_power_mult;
 
             // If overcharged, ball goes wild
             if event.overcharged {
@@ -168,7 +180,7 @@ pub fn shot_execution_system(
                     0.0,
                     actual_target.z + wild_scatter.y,
                 );
-                let velocity = compute_launch_velocity(player_pos, wild_target, speed);
+                let velocity = compute_launch_velocity(player_pos, wild_target, speed, 0.0);
                 ball_transform.translation = Vec3::new(player_pos.x, LAUNCH_HEIGHT, player_pos.z);
                 ball_state.velocity = velocity;
                 ball_state.angular_velocity = Vec3::ZERO;
@@ -177,7 +189,7 @@ pub fn shot_execution_system(
                 continue;
             }
 
-            let velocity = compute_launch_velocity(player_pos, actual_target, speed);
+            let velocity = compute_launch_velocity(player_pos, actual_target, speed, angle_offset);
 
             ball_transform.translation = Vec3::new(player_pos.x, LAUNCH_HEIGHT, player_pos.z);
             ball_state.velocity = velocity;
@@ -185,13 +197,13 @@ pub fn shot_execution_system(
             ball_state.grounded = false;
 
             info!(
-                "Shot executed: {:?} power={:.0}%, target=({:.1}, {:.1}), speed={:.1}m/s, spin={}",
+                "Shot executed: {} {:?} power={:.0}%, target=({:.1}, {:.1}), speed={:.1}m/s",
+                shot_type.display_name(),
                 modifier,
                 event.power * 100.0,
                 actual_target.x,
                 actual_target.z,
-                speed,
-                spin
+                speed
             );
         }
     }
@@ -199,7 +211,8 @@ pub fn shot_execution_system(
 
 /// Compute launch velocity to send ball from origin toward target at given speed,
 /// with enough arc to clear the net (at z=0, height = NET_HEIGHT_CENTER).
-fn compute_launch_velocity(from: Vec3, to: Vec3, speed: f32) -> Vec3 {
+/// `angle_offset_deg` adds extra degrees to the launch angle (positive = higher arc).
+fn compute_launch_velocity(from: Vec3, to: Vec3, speed: f32, angle_offset_deg: f32) -> Vec3 {
     let dx = to.x - from.x;
     let dz = to.z - from.z;
     let horizontal_dist = (dx * dx + dz * dz).sqrt();
@@ -265,8 +278,11 @@ fn compute_launch_velocity(from: Vec3, to: Vec3, speed: f32) -> Vec3 {
         }
     }
 
-    let vh = speed * best_angle.cos();
-    let vy = speed * best_angle.sin();
+    // Apply angle offset (from shot type: lob = higher, drop = lower)
+    let final_angle = (best_angle + angle_offset_deg.to_radians()).clamp(0.05, 1.2);
+
+    let vh = speed * final_angle.cos();
+    let vy = speed * final_angle.sin();
 
     Vec3::new(dir_x * vh, vy, dir_z * vh)
 }

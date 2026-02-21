@@ -30,16 +30,58 @@ impl ActiveShotModifier {
     }
 }
 
+/// Active shot type (groundstroke / lob / drop shot).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ShotType {
+    #[default]
+    Groundstroke,
+    Lob,
+    DropShot,
+}
+
+impl ShotType {
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            ShotType::Groundstroke => "GROUND",
+            ShotType::Lob => "LOB",
+            ShotType::DropShot => "DROP",
+        }
+    }
+}
+
+/// Resource tracking the currently selected shot type.
+#[derive(Resource, Default)]
+pub struct ActiveShotType(pub ShotType);
+
 /// System that cycles shot modifier on scroll wheel input.
 pub fn shot_modifier_cycle_system(
     mut scroll_events: EventReader<MouseWheel>,
     mut modifier: ResMut<ActiveShotModifier>,
 ) {
     for event in scroll_events.read() {
-        // Any scroll direction cycles the modifier
         if event.y.abs() > 0.0 || event.x.abs() > 0.0 {
             modifier.cycle_next();
             info!("Shot modifier: {}", modifier.display_name());
         }
+    }
+}
+
+/// System that sets shot type via Q/E keys. Releases revert to Groundstroke.
+pub fn shot_type_system(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut shot_type: ResMut<ActiveShotType>,
+) {
+    let prev = shot_type.0;
+
+    if keyboard.pressed(KeyCode::KeyQ) {
+        shot_type.0 = ShotType::Lob;
+    } else if keyboard.pressed(KeyCode::KeyE) {
+        shot_type.0 = ShotType::DropShot;
+    } else {
+        shot_type.0 = ShotType::Groundstroke;
+    }
+
+    if shot_type.0 != prev {
+        info!("Shot type: {}", shot_type.0.display_name());
     }
 }

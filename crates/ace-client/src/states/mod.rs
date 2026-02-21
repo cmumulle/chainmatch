@@ -59,16 +59,18 @@ impl Plugin for StatesPlugin {
             )
             .add_systems(
                 Update,
-                input::shot_modifier_cycle_system.run_if(in_state(GameState::Playing)),
+                (input::shot_modifier_cycle_system, input::shot_type_system)
+                    .run_if(in_state(GameState::Playing)),
             )
             .add_systems(
                 Update,
-                (hud::update_power_bar, hud::update_modifier_label)
+                (hud::update_power_bar, hud::update_modifier_label, hud::update_shot_type_label)
                     .run_if(in_state(GameState::Playing)),
             )
             .add_event::<shot::ShotCharged>()
             .init_resource::<shot::ShotChargeState>()
             .init_resource::<input::ActiveShotModifier>()
+            .init_resource::<input::ActiveShotType>()
             .add_event::<ball_physics::NetFault>()
             .add_event::<ball_physics::OutOfBounds>()
             .add_event::<ball_physics::ValidBounce>()
