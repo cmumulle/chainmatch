@@ -1,7 +1,12 @@
 use bevy::prelude::*;
 use crate::systems::shot::ShotChargeState;
+use crate::systems::input::ActiveShotModifier;
 use crate::systems::movement::Player;
 use crate::resources::court::CourtEntity;
+
+/// Marker for the shot modifier HUD text.
+#[derive(Component)]
+pub struct ModifierLabel;
 
 /// Marker for the power bar background.
 #[derive(Component)]
@@ -17,12 +22,29 @@ const BAR_HEIGHT: f32 = 1.5;
 const BAR_OFFSET_X: f32 = 0.8; // Offset from player to the right
 const BAR_OFFSET_Y: f32 = 0.5; // Vertical offset from player base
 
-/// Spawns power bar entities near the player.
+/// Spawns all HUD elements: power bar + modifier label.
 pub fn spawn_hud(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    // Modifier label (2D UI text, bottom-right corner)
+    commands.spawn((
+        Text::new("FLAT"),
+        TextFont {
+            font_size: 24.0,
+            ..default()
+        },
+        TextColor(Color::WHITE),
+        Node {
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(20.0),
+            right: Val::Px(20.0),
+            ..default()
+        },
+        ModifierLabel,
+        CourtEntity,
+    ));
     let bg_mat = materials.add(StandardMaterial {
         base_color: Color::srgba(0.1, 0.1, 0.1, 0.7),
         alpha_mode: AlphaMode::Blend,
@@ -124,5 +146,26 @@ pub fn update_power_bar(
                 mat.base_color = Color::srgba(0.0, 0.8, 0.2, 0.9);
             }
         }
+    }
+}
+
+/// System that updates the modifier label text.
+pub fn update_modifier_label(
+    modifier: Res<ActiveShotModifier>,
+    mut query: Query<(&mut Text, &mut TextColor), With<ModifierLabel>>,
+) {
+    if !modifier.is_changed() {
+        return;
+    }
+
+    for (mut text, mut color) in query.iter_mut() {
+        **text = modifier.display_name().to_string();
+
+        // Color-code modifier
+        *color = match modifier.0 {
+            ace_shared::types::ShotModifier::Flat => TextColor(Color::WHITE),
+            ace_shared::types::ShotModifier::Topspin => TextColor(Color::srgb(0.2, 0.9, 0.2)),
+            ace_shared::types::ShotModifier::Slice => TextColor(Color::srgb(0.4, 0.7, 1.0)),
+        };
     }
 }

@@ -1,6 +1,8 @@
 use bevy::prelude::*;
+use ace_shared::types::ShotModifier;
 use crate::systems::aiming::AimTarget;
 use crate::systems::ball_physics::{Ball, BallState};
+use crate::systems::input::ActiveShotModifier;
 use crate::systems::movement::Player;
 use crate::resources::court::NET_HEIGHT_CENTER;
 
@@ -98,10 +100,30 @@ const BASE_PRECISION_RADIUS: f32 = 0.5;
 /// Hit height: ball launch height above ground.
 const LAUNCH_HEIGHT: f32 = 1.0;
 
+/// Compute angular velocity (spin) for the given shot modifier.
+/// Returns (angular_velocity, speed_multiplier).
+fn modifier_spin(modifier: ShotModifier) -> (Vec3, f32) {
+    match modifier {
+        ShotModifier::Flat => {
+            // No spin, highest speed
+            (Vec3::ZERO, 1.0)
+        }
+        ShotModifier::Topspin => {
+            // Forward spin around X axis: ball dips faster, bounces higher
+            (Vec3::new(80.0, 0.0, 0.0), 0.9)
+        }
+        ShotModifier::Slice => {
+            // Backspin around X axis: ball floats more, bounces lower and skids
+            (Vec3::new(-40.0, 0.0, 0.0), 0.85)
+        }
+    }
+}
+
 /// System that executes a shot when ShotCharged fires and ball is near player.
 pub fn shot_execution_system(
     mut shot_events: EventReader<ShotCharged>,
     aim_target: Res<AimTarget>,
+    active_modifier: Res<ActiveShotModifier>,
     player_query: Query<&Transform, (With<Player>, Without<Ball>)>,
     mut ball_query: Query<(&mut Transform, &mut BallState), With<Ball>>,
 ) {
@@ -115,8 +137,9 @@ pub fn shot_execution_system(
             continue;
         };
 
-        // Check if ball is near the player
         let player_pos = player_transform.translation;
+        let modifier = active_modifier.0;
+        let (spin, speed_mult) = modifier_spin(modifier);
 
         for (mut ball_transform, mut ball_state) in ball_query.iter_mut() {
             let ball_pos = ball_transform.translation;
@@ -127,7 +150,7 @@ pub fn shot_execution_system(
                 continue;
             }
 
-            // Apply precision scatter: random offset within reticle radius
+            // Apply precision scatter
             let scatter = random_in_circle(BASE_PRECISION_RADIUS);
             let actual_target = Vec3::new(
                 target_pos.x + scatter.x,
@@ -135,8 +158,7 @@ pub fn shot_execution_system(
                 target_pos.z + scatter.y,
             );
 
-            // Compute launch velocity to reach target
-            let speed = BASE_MAX_SPEED * event.power;
+            let speed = BASE_MAX_SPEED * event.power * speed_mult;
 
             // If overcharged, ball goes wild
             if event.overcharged {
@@ -157,18 +179,19 @@ pub fn shot_execution_system(
 
             let velocity = compute_launch_velocity(player_pos, actual_target, speed);
 
-            // Reset ball to launch position
             ball_transform.translation = Vec3::new(player_pos.x, LAUNCH_HEIGHT, player_pos.z);
             ball_state.velocity = velocity;
-            ball_state.angular_velocity = Vec3::ZERO;
+            ball_state.angular_velocity = spin;
             ball_state.grounded = false;
 
             info!(
-                "Shot executed: power={:.0}%, target=({:.1}, {:.1}), speed={:.1}m/s",
+                "Shot executed: {:?} power={:.0}%, target=({:.1}, {:.1}), speed={:.1}m/s, spin={}",
+                modifier,
                 event.power * 100.0,
                 actual_target.x,
                 actual_target.z,
-                speed
+                speed,
+                spin
             );
         }
     }
