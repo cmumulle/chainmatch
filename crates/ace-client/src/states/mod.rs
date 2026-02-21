@@ -65,9 +65,13 @@ impl Plugin for StatesPlugin {
             )
             .add_systems(
                 Update,
-                (serve::serve_toss_system, serve::serve_track_system, serve::serve_hit_system)
+                (serve::serve_type_cycle_system, serve::serve_toss_system, serve::serve_track_system, serve::serve_hit_system)
                     .chain()
                     .run_if(in_state(GameState::Playing)),
+            )
+            .add_systems(
+                Update,
+                serve::serve_landing_system.run_if(in_state(GameState::Playing)),
             )
             .add_systems(
                 Update,
@@ -77,6 +81,9 @@ impl Plugin for StatesPlugin {
             .add_event::<shot::ShotCharged>()
             .init_resource::<shot::ShotChargeState>()
             .init_resource::<serve::ServeState>()
+            .init_resource::<serve::ActiveServeType>()
+            .add_event::<serve::ServeFault>()
+            .add_event::<serve::DoubleFault>()
             .init_resource::<input::ActiveShotModifier>()
             .init_resource::<input::ActiveShotType>()
             .init_resource::<input::SmashAvailable>()

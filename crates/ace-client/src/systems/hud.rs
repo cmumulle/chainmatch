@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use crate::systems::shot::ShotChargeState;
 use crate::systems::input::{ActiveShotModifier, ActiveShotType, ShotType};
-use crate::systems::serve::{ServeState, ServePhase};
+use crate::systems::serve::{ServeState, ServePhase, ActiveServeType};
 use crate::systems::movement::Player;
 use crate::resources::court::CourtEntity;
 
@@ -240,13 +240,22 @@ pub fn update_shot_type_label(
 /// System that updates the serve status label.
 pub fn update_serve_label(
     serve_state: Res<ServeState>,
+    serve_type: Res<ActiveServeType>,
     mut query: Query<&mut Text, With<ServeLabel>>,
 ) {
     for mut text in query.iter_mut() {
         **text = match serve_state.phase {
             ServePhase::Idle => {
-                if serve_state.serve_pending {
-                    "Press SPACE to toss".to_string()
+                if serve_state.serve_in_flight {
+                    "Serve in flight...".to_string()
+                } else if serve_state.serve_pending {
+                    let serve_num = if serve_state.fault_count == 0 { "1st" } else { "2nd" };
+                    format!(
+                        "{} Serve ({:?}) - {} [SPACE to toss, scroll to change]",
+                        serve_num,
+                        serve_state.serve_side,
+                        serve_type.0.display_name()
+                    )
                 } else {
                     String::new()
                 }

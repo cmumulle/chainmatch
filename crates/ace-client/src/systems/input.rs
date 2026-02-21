@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use bevy::input::mouse::MouseWheel;
 use ace_shared::types::ShotModifier;
+use crate::systems::serve::ServeState;
 
 /// Resource tracking the currently selected shot modifier.
 #[derive(Resource)]
@@ -60,10 +61,15 @@ pub struct SmashAvailable(pub bool);
 pub struct ActiveShotType(pub ShotType);
 
 /// System that cycles shot modifier on scroll wheel input.
+/// Skips when serve is pending (scroll wheel cycles serve type instead).
 pub fn shot_modifier_cycle_system(
     mut scroll_events: EventReader<MouseWheel>,
     mut modifier: ResMut<ActiveShotModifier>,
+    serve_state: Res<ServeState>,
 ) {
+    if serve_state.serve_pending {
+        return;
+    }
     for event in scroll_events.read() {
         if event.y.abs() > 0.0 || event.x.abs() > 0.0 {
             modifier.cycle_next();
