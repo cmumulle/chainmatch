@@ -1,3 +1,1 @@
-pub fn hello() -> &'static str {
-    "ace-shared"
-}
+pub mod types;
