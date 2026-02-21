@@ -1,10 +1,41 @@
 use bevy::prelude::*;
 use ace_shared::physics::BallPhysicsParams;
-use crate::resources::court::CourtEntity;
+use crate::resources::court::{
+    CourtEntity, HALF_COURT_LENGTH, HALF_COURT_WIDTH,
+    NET_HEIGHT_CENTER, NET_HEIGHT_POSTS, COURT_WIDTH,
+};
 
 /// Marker for the ball entity.
 #[derive(Component)]
 pub struct Ball;
+
+/// Which side of the court an event occurred on.
+#[derive(Debug, Clone, Copy)]
+pub enum CourtSide {
+    Near,  // positive z (player side)
+    Far,   // negative z (opponent side)
+}
+
+/// Event: ball hit the net.
+#[derive(Event, Debug)]
+pub struct NetFault {
+    pub position: Vec3,
+    pub side: CourtSide,
+}
+
+/// Event: ball bounced outside court lines.
+#[derive(Event, Debug)]
+pub struct OutOfBounds {
+    pub position: Vec3,
+    pub side: CourtSide,
+}
+
+/// Event: ball bounced inside court lines.
+#[derive(Event, Debug)]
+pub struct ValidBounce {
+    pub position: Vec3,
+    pub side: CourtSide,
+}
 
 /// Ball state tracked each physics tick.
 #[derive(Component)]
@@ -57,10 +88,31 @@ pub fn spawn_ball(
     ));
 }
 
+/// Calculate net height at a given x position (interpolates between center and posts).
+fn net_height_at_x(x: f32) -> f32 {
+    let half_width = COURT_WIDTH / 2.0;
+    let t = (x.abs() / half_width).clamp(0.0, 1.0);
+    // Linear interpolation: center height at x=0, post height at edges
+    NET_HEIGHT_CENTER + t * (NET_HEIGHT_POSTS - NET_HEIGHT_CENTER)
+}
+
+/// Determine which side of court a z position is on.
+fn court_side(z: f32) -> CourtSide {
+    if z >= 0.0 { CourtSide::Near } else { CourtSide::Far }
+}
+
+/// Check if a bounce position is within court lines.
+fn is_in_bounds(pos: Vec3) -> bool {
+    pos.x.abs() <= HALF_COURT_WIDTH && pos.z.abs() <= HALF_COURT_LENGTH
+}
+
 /// Fixed-timestep ball physics system (120Hz).
 pub fn ball_physics_system(
     time: Res<Time>,
     mut query: Query<(&mut Transform, &mut BallState), With<Ball>>,
+    mut net_faults: EventWriter<NetFault>,
+    mut out_of_bounds: EventWriter<OutOfBounds>,
+    mut valid_bounces: EventWriter<ValidBounce>,
 ) {
     let dt = time.delta_secs();
 
@@ -75,6 +127,8 @@ pub fn ball_physics_system(
         let max_speed = state.params.max_speed;
         let air_drag = state.params.air_drag;
         let magnus_coeff = state.params.magnus_coefficient;
+
+        let prev_z = transform.translation.z;
 
         // 1. Apply gravity
         state.velocity.y += gravity * dt;
@@ -97,9 +151,42 @@ pub fn ball_physics_system(
         // 4. Update position
         transform.translation += state.velocity * dt;
 
-        // 5. Bounce detection: if ball reaches court surface
+        let new_z = transform.translation.z;
+
+        // 5. Net collision: ball crossed z=0 plane
+        if (prev_z > 0.0 && new_z <= 0.0) || (prev_z < 0.0 && new_z >= 0.0) {
+            let net_height = net_height_at_x(transform.translation.x);
+            if transform.translation.y < net_height {
+                let side = court_side(prev_z);
+                net_faults.send(NetFault {
+                    position: transform.translation,
+                    side,
+                });
+                // Stop ball at net
+                state.velocity = Vec3::ZERO;
+                state.angular_velocity = Vec3::ZERO;
+                state.grounded = true;
+                continue;
+            }
+        }
+
+        // 6. Bounce detection: if ball reaches court surface
         if transform.translation.y <= ball_radius {
             transform.translation.y = ball_radius;
+            let bounce_pos = transform.translation;
+            let side = court_side(bounce_pos.z);
+
+            if is_in_bounds(bounce_pos) {
+                valid_bounces.send(ValidBounce {
+                    position: bounce_pos,
+                    side,
+                });
+            } else {
+                out_of_bounds.send(OutOfBounds {
+                    position: bounce_pos,
+                    side,
+                });
+            }
 
             // Reflect vertical velocity with restitution loss
             state.velocity.y = -state.velocity.y * restitution;
@@ -128,6 +215,23 @@ pub fn ball_physics_system(
     }
 }
 
+/// Debug system: logs ball events to console.
+pub fn debug_ball_events(
+    mut net_faults: EventReader<NetFault>,
+    mut out_of_bounds: EventReader<OutOfBounds>,
+    mut valid_bounces: EventReader<ValidBounce>,
+) {
+    for event in net_faults.read() {
+        info!("NET FAULT at {:?} (side: {:?})", event.position, event.side);
+    }
+    for event in out_of_bounds.read() {
+        info!("OUT OF BOUNDS at {:?} (side: {:?})", event.position, event.side);
+    }
+    for event in valid_bounces.read() {
+        info!("VALID BOUNCE at {:?} (side: {:?})", event.position, event.side);
+    }
+}
+
 /// Debug launch preset index (cycles through shot types).
 #[derive(Resource, Default)]
 pub struct DebugLaunchIndex(usize);
@@ -143,15 +247,19 @@ pub fn debug_ball_launch(
     }
 
     // Preset shots: (velocity, angular_velocity, description)
-    let presets: [(Vec3, Vec3, &str); 4] = [
-        // Flat serve: fast, no spin
-        (Vec3::new(0.0, 5.0, -30.0), Vec3::ZERO, "Flat serve"),
-        // Topspin: forward + upward, spin around X axis (dips down)
-        (Vec3::new(0.0, 8.0, -25.0), Vec3::new(80.0, 0.0, 0.0), "Topspin"),
-        // Slice: forward + slight side, spin around Y axis (curves + floats)
-        (Vec3::new(3.0, 6.0, -25.0), Vec3::new(-30.0, 50.0, 0.0), "Slice"),
-        // Kick serve: upward + forward, heavy topspin
-        (Vec3::new(0.0, 12.0, -20.0), Vec3::new(120.0, 0.0, 0.0), "Kick serve"),
+    let presets: [(Vec3, Vec3, &str); 6] = [
+        // Flat serve: fast, no spin — lands in
+        (Vec3::new(0.0, 5.0, -30.0), Vec3::ZERO, "Flat serve (in)"),
+        // Topspin: forward + upward, spin around X axis (dips down) — lands in
+        (Vec3::new(0.0, 8.0, -25.0), Vec3::new(80.0, 0.0, 0.0), "Topspin (in)"),
+        // Slice: forward + slight side — lands in
+        (Vec3::new(3.0, 6.0, -25.0), Vec3::new(-30.0, 50.0, 0.0), "Slice (in)"),
+        // Low shot into net — net fault
+        (Vec3::new(0.0, 0.2, -15.0), Vec3::ZERO, "Into net (fault)"),
+        // Wide shot — out of bounds
+        (Vec3::new(12.0, 5.0, -20.0), Vec3::ZERO, "Wide shot (out)"),
+        // Long shot — out of bounds beyond baseline
+        (Vec3::new(0.0, 3.0, -40.0), Vec3::ZERO, "Long shot (out)"),
     ];
 
     let idx = launch_index.0 % presets.len();

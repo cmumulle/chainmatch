@@ -43,6 +43,13 @@ impl Plugin for StatesPlugin {
                 Update,
                 ball_physics::debug_ball_launch.run_if(in_state(GameState::Playing)),
             )
+            .add_systems(
+                Update,
+                ball_physics::debug_ball_events.run_if(in_state(GameState::Playing)),
+            )
+            .add_event::<ball_physics::NetFault>()
+            .add_event::<ball_physics::OutOfBounds>()
+            .add_event::<ball_physics::ValidBounce>()
             .init_resource::<ball_physics::DebugLaunchIndex>()
             .insert_resource(Time::<Fixed>::from_hz(120.0));
     }
