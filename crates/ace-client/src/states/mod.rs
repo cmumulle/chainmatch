@@ -39,6 +39,11 @@ impl Plugin for StatesPlugin {
                 FixedUpdate,
                 ball_physics::ball_physics_system.run_if(in_state(GameState::Playing)),
             )
+            .add_systems(
+                Update,
+                ball_physics::debug_ball_launch.run_if(in_state(GameState::Playing)),
+            )
+            .init_resource::<ball_physics::DebugLaunchIndex>()
             .insert_resource(Time::<Fixed>::from_hz(120.0));
     }
 }
